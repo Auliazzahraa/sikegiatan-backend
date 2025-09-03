@@ -74,6 +74,11 @@ app.delete("/delete-user/:uid", async (req, res) => {
   }
 });
 
+app.get("/", (req, res) => {
+  res.send("✅ Backend API is running on Railway");
+});
+
+
 app.listen(PORT, () =>
   console.log(`✅ Server running on http://localhost:${PORT}`)
 );
