@@ -19,3 +19,10 @@
     "moment": "^2.30.1"
   }
 }
+
+{
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
