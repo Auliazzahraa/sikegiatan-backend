@@ -3,9 +3,11 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
+import cron from "node-cron"
 
 import admin from "firebase-admin";
 import { readFileSync } from "fs";
+import dayjs from "dayjs";
 
 dotenv.config();
 
@@ -21,7 +23,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// 🔹 Firebase Admin Config dari ENV (bukan file)
+// Firebase Admin Config dari ENV
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
 admin.initializeApp({
@@ -50,21 +52,12 @@ app.post('/delete-image', async (req, res) => {
   }
 });
 
-
-app.listen(PORT, () =>
-  console.log(`✅ Server running on http://localhost:${PORT}`)
-);
-
-// ✅ Endpoint hapus user Firebase
+// Endpoint hapus user Firebase
 app.delete("/delete-user/:uid", async (req, res) => {
   const { uid } = req.params;
   try {
-    // hapus user dari Authentication
     await admin.auth().deleteUser(uid);
-
-    // hapus user dari Firestore (opsional kalau kamu simpan data user)
     await db.collection("users").doc(uid).delete();
-
     res.json({ message: `User ${uid} berhasil dihapus` });
   } catch (error) {
     console.error("❌ Firebase delete user error:", error);
@@ -72,10 +65,86 @@ app.delete("/delete-user/:uid", async (req, res) => {
   }
 });
 
+/* ----------------------- Fungsi kirim notif personal ----------------------- */
+async function sendNotifPersonal(uid) {
+  try {
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (!userDoc.exists) return;
+
+    const { nip, fcmToken } = userDoc.data();
+    if (!fcmToken) return;
+
+    const today = dayjs().startOf("day");
+    const tomorrow = dayjs().add(1, "day").startOf("day");
+    const bulan = dayjs().format("MMMM-YYYY").toLowerCase();
+
+    const snapshot = await db
+      .collection("jadwal")
+      .doc(bulan)
+      .collection("entries")
+      .where("tanggal", ">=", today.toDate())
+      .where("tanggal", "<", tomorrow.toDate())
+      .where("nipKegiatan", "array-contains", nip)
+      .get();
+
+    if (snapshot.empty) return;
+
+    const kegiatan = [];
+    snapshot.forEach((doc) => kegiatan.push(doc.data()));
+
+    let notifBody = "";
+    const dalam = kegiatan.filter((k) => k.jenisKegiatan === "Dalam Ruangan");
+    const luar = kegiatan.filter((k) => k.jenisKegiatan === "luar ruangan");
+
+    if (dalam.length > 0) {
+      notifBody = `Hari ini ada kegiatan ${dalam[0].namaKegiatan} (Dalam Ruangan) di ${dalam[0].lokasi}`;
+    } else if (luar.length === 1) {
+      notifBody = `Hari ini ada kegiatan ${luar[0].namaKegiatan} (Luar Ruangan) di ${luar[0].lokasi}`;
+    } else if (luar.length > 1) {
+      notifBody = `Hari ini kamu punya ${luar.length} kegiatan luar ruangan.`;
+    } else {
+      notifBody = "Hari ini kamu tidak punya kegiatan terjadwal.";
+    }
+
+    const message = {
+      notification: {
+        title: "Kegiatan Hari Ini!",
+        body: notifBody,
+      },
+      token: fcmToken,
+    };
+
+    await admin.messaging().send(message);
+    console.log(`✅ Notif terkirim ke ${uid}`);
+  } catch (err) {
+    console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
+  }
+}
+
+/* ----------------------- Endpoint manual ----------------------- */
+app.post("/send-personal-notif/:uid", async (req, res) => {
+  try {
+    const { uid } = req.params;
+    await sendNotifPersonal(uid);
+    res.json({ success: true, message: "Notif diproses" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* -----------------------  Cron job 07:30 ----------------------- */
+// Format cron: "menit jam * * *"
+cron.schedule("30 7 * * *", async () => {
+  console.log("⏰ Cron job jalan: kirim notifikasi semua user");
+  const usersSnapshot = await db.collection("users").get();
+  for (const doc of usersSnapshot.docs) {
+    await sendNotifPersonal(doc.id);
+  }
+});
+
 app.get("/", (req, res) => {
   res.send("✅ Backend API is running on Railway");
 });
-
 
 app.listen(PORT, () =>
   console.log(`✅ Server running on http://localhost:${PORT}`)
