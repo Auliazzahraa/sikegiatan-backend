@@ -104,6 +104,7 @@ async function sendNotifPersonal(uid) {
       }
     }
 
+    // 🔹 Kirim notif FCM (data message supaya service worker custom dipakai)
     const message = {
       token: fcmToken,
       data: {
@@ -115,13 +116,13 @@ async function sendNotifPersonal(uid) {
     };
 
     await admin.messaging().send(message);
-    console.log(`📨 Notif berhasil dikirim ke ${uid}`);
+    console.log(`📨 Notif berhasil dikirim ke ${uid} -> ${notifBody}`);
   } catch (err) {
     console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
   }
 }
 
-// Endpoint manual
+/* ----------------------- Endpoint manual ----------------------- */
 app.post("/send-personal-notif/:uid", async (req, res) => {
   const { uid } = req.params;
   await sendNotifPersonal(uid);
@@ -130,7 +131,7 @@ app.post("/send-personal-notif/:uid", async (req, res) => {
 
 /* ----------------------- 🔹 Cron job 07:30 ----------------------- */
 // testt * * *"
-cron.schedule("15 17 * * *", async () => {
+cron.schedule("50 19 * * *", async () => {
   console.log("⏰ Cron job jalan:", dayjs().format("YYYY-MM-DD HH:mm"));
   const usersSnapshot = await db.collection("users").get();
   for (const doc of usersSnapshot.docs) {
