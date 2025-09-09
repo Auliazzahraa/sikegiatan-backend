@@ -23,20 +23,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Firebase Admin Config dari ENV
-// Ambil FIREBASE_CONFIG dari ENV
-let firebaseConfigRaw = process.env.FIREBASE_CONFIG;
-
-// Pastikan replace \\n menjadi newline literal
-firebaseConfigRaw = firebaseConfigRaw.replace(/\\n/g, '\n').trim()
-
-let serviceAccount;
-try {
-  serviceAccount = JSON.parse(firebaseConfigRaw);
-} catch (err) {
-  console.error("❌ Gagal parse FIREBASE_CONFIG:", err);
-  process.exit(1);
-}
+const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
