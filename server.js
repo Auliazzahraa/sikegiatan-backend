@@ -28,7 +28,7 @@ cloudinary.config({
 let firebaseConfigRaw = process.env.FIREBASE_CONFIG;
 
 // Pastikan replace \\n menjadi newline literal
-firebaseConfigRaw = firebaseConfigRaw.replace(/\\n/g, '\n');
+firebaseConfigRaw = firebaseConfigRaw.replace(/\\n/g, '\n').trim()
 
 let serviceAccount;
 try {
