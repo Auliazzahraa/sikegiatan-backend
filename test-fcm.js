@@ -1,28 +1,26 @@
 import admin from "firebase-admin";
 
-// Ambil service account dari ENV
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
-// Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
 async function testFCM() {
-  const testToken = "MASUKKAN_FCM_TOKEN_YANG_VALID_DI_SINI";
+  const testToken = "f_fBmu4LrMlABYfuE26OSC:APA91bHGP4QJm3ZqSz8suSsfHuznePv3BPsviM29FWzU0iRLPtfgUop-rjmcFT4KH9TJIpLCaKX59MJsW3yfm29HrkeJMrnCqRy7uoqiTwBJ7JmnBMGJYJM";
+  const payload = {
+    notification: {
+      title: "Test FCM",
+      body: "Ini test notif"
+    },
+  };
 
   try {
-    const response = await admin.messaging().sendToDevice(testToken, {
-      notification: {
-        title: "Test Notifikasi",
-        body: "Ini notif test dari server Railway"
-      },
-    });
-    console.log("✅ FCM berhasil dikirim:", response);
+    const response = await admin.messaging().sendToDevice(testToken, payload);
+    console.log("✅ FCM berhasil:", response);
   } catch (err) {
     console.error("❌ FCM gagal:", err);
   }
 }
 
-// Jalankan test
 testFCM();
