@@ -92,51 +92,58 @@ async function sendNotifPersonal(uid) {
       .where("nipKegiatan", "array-contains", nip)
       .get();
 
-    if (snapshot.empty) {
-      console.log(`ℹ️ Tidak ada kegiatan untuk ${uid} hari ini`);
-      return;
-    }
-
-    const kegiatan = [];
-    snapshot.forEach((doc) => kegiatan.push(doc.data()));
-
     let notifBody = "";
-    const dalam = kegiatan.filter((k) => k.jenisKegiatan === "Dalam Ruangan");
-    const luar = kegiatan.filter((k) => k.jenisKegiatan === "luar ruangan");
 
-    if (dalam.length > 0) {
-      notifBody = `Hari ini ada kegiatan ${dalam[0].namaKegiatan} (Dalam Ruangan) di ${dalam[0].lokasi}`;
-    } else if (luar.length === 1) {
-      notifBody = `Hari ini ada kegiatan ${luar[0].namaKegiatan} (Luar Ruangan) di ${luar[0].lokasi}`;
-    } else if (luar.length > 1) {
-      notifBody = `Hari ini kamu punya ${luar.length} kegiatan luar ruangan.`;
-    } else {
+    if (snapshot.empty) {
+      // User tidak punya kegiatan hari ini
       notifBody = "Hari ini kamu tidak punya kegiatan terjadwal.";
+      console.log(`ℹ️ Tidak ada kegiatan untuk ${uid} hari ini`);
+    } else {
+      // Ada kegiatan
+      const kegiatan = snapshot.docs.map(doc => doc.data());
+      const dalam = kegiatan.filter(k => k.jenisKegiatan === "Dalam Ruangan");
+      const luar = kegiatan.filter(k => k.jenisKegiatan === "Luar Ruangan");
+
+      if (dalam.length > 0) {
+        notifBody = `Hari ini ada kegiatan ${dalam[0].namaKegiatan} (Dalam Ruangan) di ${dalam[0].lokasi}`;
+      } else if (luar.length === 1) {
+        notifBody = `Hari ini ada kegiatan ${luar[0].namaKegiatan} (Luar Ruangan) di ${luar[0].lokasi}`;
+      } else {
+        notifBody = `Hari ini kamu punya ${luar.length} kegiatan luar ruangan.`;
+      }
     }
 
     const payload = {
       notification: {
         title: "Kegiatan Hari Ini!",
         body: notifBody,
+        image: "https://res.cloudinary.com/dmdfgqk2h/image/upload/v1757337747/logo_pkm_oefjjj.png",
       },
-      data: {
-        uid,
-      },
+      data: { uid },
     };
 
-    // 🔎 PAKAI sendToDevice supaya bisa lihat response detail
-    const messaging = admin.messaging();
-      const message = {
+    // Kirim notif hanya ke 1 token
+    try {
+      const response = await admin.messaging().send({
         token: fcmToken,
         notification: payload.notification,
         data: payload.data,
-      };
-    const response = await messaging.send(message);
-    console.log(`📨 Hasil kirim notif ke ${uid}:`, JSON.stringify(response, null, 2));
+      });
+      console.log(`📨 Notif dikirim ke ${uid}:`, response);
+    } catch (err) {
+      console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
+      // Jika token invalid, bisa hapus dari Firestore
+      if (err.code === "messaging/registration-token-not-registered") {
+        await db.collection("users").doc(uid).update({ fcmToken: admin.firestore.FieldValue.delete() });
+        console.log(`🗑️ Token FCM ${uid} dihapus karena tidak valid`);
+      }
+    }
+
   } catch (err) {
-    console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
+    console.error(`❌ Error sendNotifPersonal untuk ${uid}:`, err);
   }
 }
+
 
 /* ----------------------- 🔹 Endpoint manual ----------------------- */
 app.post("/send-personal-notif/:uid", async (req, res) => {
@@ -151,7 +158,7 @@ app.post("/send-personal-notif/:uid", async (req, res) => {
 
 /* ----------------------- 🔹 Cron job 07:30 ----------------------- */
 // testt * * *"
-cron.schedule("05 15 * * *", async () => {
+cron.schedule("40 15 * * *", async () => {
   console.log("⏰ Cron job jalan:", dayjs().format("YYYY-MM-DD HH:mm"));
   const usersSnapshot = await db.collection("users").get();
   for (const doc of usersSnapshot.docs) {
