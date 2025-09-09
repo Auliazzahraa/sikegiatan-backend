@@ -126,7 +126,13 @@ async function sendNotifPersonal(uid) {
     };
 
     // 🔎 PAKAI sendToDevice supaya bisa lihat response detail
-    const response = await admin.messaging().sendToDevice(fcmToken, payload);
+    const messaging = admin.messaging();
+      const message = {
+        token: fcmToken,
+        notification: payload.notification,
+        data: payload.data,
+      };
+    const response = await messaging.send(message);
     console.log(`📨 Hasil kirim notif ke ${uid}:`, JSON.stringify(response, null, 2));
   } catch (err) {
     console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
