@@ -151,7 +151,7 @@ app.post("/send-personal-notif/:uid", async (req, res) => {
 
 /* ----------------------- 🔹 Cron job 07:30 ----------------------- */
 // testt * * *"
-cron.schedule("00 15 * * *", async () => {
+cron.schedule("05 15 * * *", async () => {
   console.log("⏰ Cron job jalan:", dayjs().format("YYYY-MM-DD HH:mm"));
   const usersSnapshot = await db.collection("users").get();
   for (const doc of usersSnapshot.docs) {
