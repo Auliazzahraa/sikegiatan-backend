@@ -1,10 +1,7 @@
 import admin from "firebase-admin";
-import { getMessaging, send } from "firebase-admin/messaging";
 
-// Ambil service account dari ENV
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
-// Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
@@ -15,13 +12,13 @@ async function testFCM() {
   const message = {
     token: testToken,
     notification: {
-      title: "Test Notifikasi",
-      body: "Ini notif test dari server Railway",
+      title: "Test FCM",
+      body: "Ini test notif"
     },
   };
 
   try {
-    const response = await send(getMessaging(), message);
+    const response = await admin.messaging().send(message);
     console.log("✅ FCM berhasil:", response);
   } catch (err) {
     console.error("❌ FCM gagal:", err);
