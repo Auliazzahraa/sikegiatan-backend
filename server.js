@@ -65,19 +65,14 @@ app.delete("/delete-user/:uid", async (req, res) => {
 });
 
 /* ----------------------- 🔹 Fungsi kirim notif personal ----------------------- */
+// Fungsi kirim notif personal
 async function sendNotifPersonal(uid) {
   try {
     const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) {
-      console.log(`⚠️ User ${uid} tidak ditemukan di Firestore`);
-      return;
-    }
+    if (!userDoc.exists) return;
 
     const { nip, fcmToken } = userDoc.data();
-    if (!fcmToken) {
-      console.log(`⚠️ User ${uid} tidak punya fcmToken`);
-      return;
-    }
+    if (!fcmToken) return;
 
     const today = dayjs().startOf("day");
     const tomorrow = dayjs().add(1, "day").startOf("day");
@@ -92,73 +87,50 @@ async function sendNotifPersonal(uid) {
       .where("nipKegiatan", "array-contains", nip)
       .get();
 
-    let notifBody = "";
+    let notifBody = "Hari ini kamu tidak punya kegiatan terjadwal.";
+    if (!snapshot.empty) {
+      const kegiatan = [];
+      snapshot.forEach((doc) => kegiatan.push(doc.data()));
 
-    if (snapshot.empty) {
-      // User tidak punya kegiatan hari ini
-      notifBody = "Hari ini kamu tidak punya kegiatan terjadwal.";
-      console.log(`ℹ️ Tidak ada kegiatan untuk ${uid} hari ini`);
-    } else {
-      // Ada kegiatan
-      const kegiatan = snapshot.docs.map(doc => doc.data());
-      const dalam = kegiatan.filter(k => k.jenisKegiatan === "Dalam Ruangan");
-      const luar = kegiatan.filter(k => k.jenisKegiatan === "Luar Ruangan");
+      const dalam = kegiatan.filter((k) => k.jenisKegiatan === "Dalam Ruangan");
+      const luar = kegiatan.filter((k) => k.jenisKegiatan === "luar ruangan");
 
       if (dalam.length > 0) {
         notifBody = `Hari ini ada kegiatan ${dalam[0].namaKegiatan} (Dalam Ruangan) di ${dalam[0].lokasi}`;
       } else if (luar.length === 1) {
         notifBody = `Hari ini ada kegiatan ${luar[0].namaKegiatan} (Luar Ruangan) di ${luar[0].lokasi}`;
-      } else {
+      } else if (luar.length > 1) {
         notifBody = `Hari ini kamu punya ${luar.length} kegiatan luar ruangan.`;
       }
     }
 
-    const payload = {
-      notification: {
+    const message = {
+      token: fcmToken,
+      data: {
         title: "Kegiatan Hari Ini!",
         body: notifBody,
-        image: "https://res.cloudinary.com/dmdfgqk2h/image/upload/v1757337747/logo_pkm_oefjjj.png",
+        icon: "/logopkm.png",
+        url: "/home",
       },
-      data: { uid },
     };
 
-    // Kirim notif hanya ke 1 token
-    try {
-      const response = await admin.messaging().send({
-        token: fcmToken,
-        notification: payload.notification,
-        data: payload.data,
-      });
-      console.log(`📨 Notif dikirim ke ${uid}:`, response);
-    } catch (err) {
-      console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
-      // Jika token invalid, bisa hapus dari Firestore
-      if (err.code === "messaging/registration-token-not-registered") {
-        await db.collection("users").doc(uid).update({ fcmToken: admin.firestore.FieldValue.delete() });
-        console.log(`🗑️ Token FCM ${uid} dihapus karena tidak valid`);
-      }
-    }
-
+    await admin.messaging().send(message);
+    console.log(`📨 Notif berhasil dikirim ke ${uid}`);
   } catch (err) {
-    console.error(`❌ Error sendNotifPersonal untuk ${uid}:`, err);
+    console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
   }
 }
 
-
-/* ----------------------- 🔹 Endpoint manual ----------------------- */
+// Endpoint manual
 app.post("/send-personal-notif/:uid", async (req, res) => {
-  try {
-    const { uid } = req.params;
-    await sendNotifPersonal(uid);
-    res.json({ success: true, message: "Notif diproses" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const { uid } = req.params;
+  await sendNotifPersonal(uid);
+  res.json({ success: true });
 });
 
 /* ----------------------- 🔹 Cron job 07:30 ----------------------- */
 // testt * * *"
-cron.schedule("40 15 * * *", async () => {
+cron.schedule("30 16 * * *", async () => {
   console.log("⏰ Cron job jalan:", dayjs().format("YYYY-MM-DD HH:mm"));
   const usersSnapshot = await db.collection("users").get();
   for (const doc of usersSnapshot.docs) {
