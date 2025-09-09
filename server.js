@@ -65,14 +65,20 @@ app.delete("/delete-user/:uid", async (req, res) => {
   }
 });
 
-/* ----------------------- Fungsi kirim notif personal ----------------------- */
+/* ----------------------- 🔹 Fungsi kirim notif personal ----------------------- */
 async function sendNotifPersonal(uid) {
   try {
     const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) return;
+    if (!userDoc.exists) {
+      console.log(`⚠️ User ${uid} tidak ditemukan di Firestore`);
+      return;
+    }
 
     const { nip, fcmToken } = userDoc.data();
-    if (!fcmToken) return;
+    if (!fcmToken) {
+      console.log(`⚠️ User ${uid} tidak punya fcmToken`);
+      return;
+    }
 
     const today = dayjs().startOf("day");
     const tomorrow = dayjs().add(1, "day").startOf("day");
@@ -87,7 +93,10 @@ async function sendNotifPersonal(uid) {
       .where("nipKegiatan", "array-contains", nip)
       .get();
 
-    if (snapshot.empty) return;
+    if (snapshot.empty) {
+      console.log(`ℹ️ Tidak ada kegiatan untuk ${uid} hari ini`);
+      return;
+    }
 
     const kegiatan = [];
     snapshot.forEach((doc) => kegiatan.push(doc.data()));
@@ -106,22 +115,25 @@ async function sendNotifPersonal(uid) {
       notifBody = "Hari ini kamu tidak punya kegiatan terjadwal.";
     }
 
-    const message = {
+    const payload = {
       notification: {
         title: "Kegiatan Hari Ini!",
         body: notifBody,
       },
-      token: fcmToken,
+      data: {
+        uid,
+      },
     };
 
-    await admin.messaging().send(message);
-    console.log(`✅ Notif terkirim ke ${uid}`);
+    // 🔎 PAKAI sendToDevice supaya bisa lihat response detail
+    const response = await admin.messaging().sendToDevice(fcmToken, payload);
+    console.log(`📨 Hasil kirim notif ke ${uid}:`, JSON.stringify(response, null, 2));
   } catch (err) {
     console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
   }
 }
 
-/* ----------------------- Endpoint manual ----------------------- */
+/* ----------------------- 🔹 Endpoint manual ----------------------- */
 app.post("/send-personal-notif/:uid", async (req, res) => {
   try {
     const { uid } = req.params;
@@ -132,15 +144,19 @@ app.post("/send-personal-notif/:uid", async (req, res) => {
   }
 });
 
-/* -----------------------  Cron job 07:30 ----------------------- */
+/* ----------------------- 🔹 Cron job 07:30 ----------------------- */
 // Format cron: "menit jam * * *"
 cron.schedule("30 7 * * *", async () => {
-  console.log("⏰ Cron job jalan: kirim notifikasi semua user");
+  console.log("⏰ Cron job jalan:", dayjs().format("YYYY-MM-DD HH:mm"));
   const usersSnapshot = await db.collection("users").get();
   for (const doc of usersSnapshot.docs) {
     await sendNotifPersonal(doc.id);
   }
+}, {
+  scheduled: true,
+  timezone: "Asia/Jakarta"
 });
+
 
 app.get("/", (req, res) => {
   res.send("✅ Backend API is running on Railway");
