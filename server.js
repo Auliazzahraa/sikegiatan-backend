@@ -68,32 +68,32 @@ app.delete("/delete-user/:uid", async (req, res) => {
 // Fungsi kirim notif personal
 async function sendNotifPersonal(uid) {
   try {
-    const userDoc = await db.collection("users").doc(uid).get();
+    const userDoc = await db.collection('users').doc(uid).get();
     if (!userDoc.exists) return;
 
     const { nip, fcmToken } = userDoc.data();
     if (!fcmToken) return;
 
-    const today = dayjs().startOf("day");
-    const tomorrow = dayjs().add(1, "day").startOf("day");
-    const bulan = dayjs().format("MMMM-YYYY").toLowerCase();
+    const today = dayjs().startOf('day');
+    const tomorrow = dayjs().add(1, 'day').startOf('day');
+    const bulan = dayjs().format('MMMM-YYYY').toLowerCase();
 
     const snapshot = await db
-      .collection("jadwal")
+      .collection('jadwal')
       .doc(bulan)
-      .collection("entries")
-      .where("tanggal", ">=", today.toDate())
-      .where("tanggal", "<", tomorrow.toDate())
-      .where("nipKegiatan", "array-contains", nip)
+      .collection('entries')
+      .where('tanggal', '>=', today.toDate())
+      .where('tanggal', '<', tomorrow.toDate())
+      .where('nipKegiatan', 'array-contains', nip)
       .get();
 
-    let notifBody = "Hari ini kamu tidak punya kegiatan terjadwal.";
+    let notifBody = 'Hari ini kamu tidak punya kegiatan terjadwal.';
     if (!snapshot.empty) {
       const kegiatan = [];
       snapshot.forEach((doc) => kegiatan.push(doc.data()));
 
-      const dalam = kegiatan.filter((k) => k.jenisKegiatan === "Dalam Ruangan");
-      const luar = kegiatan.filter((k) => k.jenisKegiatan === "luar ruangan");
+      const dalam = kegiatan.filter((k) => k.jenisKegiatan === 'Dalam Ruangan');
+      const luar = kegiatan.filter((k) => k.jenisKegiatan === 'luar ruangan');
 
       if (dalam.length > 0) {
         notifBody = `Hari ini ada kegiatan ${dalam[0].namaKegiatan} (Dalam Ruangan) di ${dalam[0].lokasi}`;
@@ -104,26 +104,27 @@ async function sendNotifPersonal(uid) {
       }
     }
 
-    // 🔹 Kirim notif FCM (data message supaya service worker custom dipakai)
     const message = {
       token: fcmToken,
-      data: {
-        title: "Kegiatan Hari Ini!",
+      notification: {
+        title: 'Kegiatan Hari Ini!',
         body: notifBody,
-        icon: "/logopkm.png",
-        url: "/home",
+        image: '/logopkm.png',
+      },
+      data: {
+        url: '/home',
       },
     };
 
     await admin.messaging().send(message);
-    console.log(`📨 Notif berhasil dikirim ke ${uid} -> ${notifBody}`);
+    console.log(`📨 Notif berhasil dikirim ke ${uid}`);
   } catch (err) {
     console.error(`❌ Gagal kirim notif ke ${uid}:`, err.message);
   }
 }
 
-/* ----------------------- Endpoint manual ----------------------- */
-app.post("/send-personal-notif/:uid", async (req, res) => {
+// Endpoint manual
+app.post('/send-personal-notif/:uid', async (req, res) => {
   const { uid } = req.params;
   await sendNotifPersonal(uid);
   res.json({ success: true });
@@ -131,7 +132,7 @@ app.post("/send-personal-notif/:uid", async (req, res) => {
 
 /* ----------------------- 🔹 Cron job 07:30 ----------------------- */
 // testt * * *"
-cron.schedule("50 19 * * *", async () => {
+cron.schedule("20 20 * * *", async () => {
   console.log("⏰ Cron job jalan:", dayjs().format("YYYY-MM-DD HH:mm"));
   const usersSnapshot = await db.collection("users").get();
   for (const doc of usersSnapshot.docs) {
